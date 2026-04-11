@@ -1,71 +1,42 @@
--- ==================== LOADER DIAGNOSTYCZNY ====================
-local API_BASE_URL = "https://tds-key-backend.onrender.com"   -- ZMIEŃ NA SWÓJ
+local API_BASE_URL = "https://tds-key-backend.onrender.com"
 local CONFIG_FILE = "key.json"
-
-print("=== LOADER START ===")
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
 local function readConfig()
-    if not isfile or not readfile then
-        print("  ⚠ isfile/readfile niedostępne")
-        return nil
-    end
-    if not isfile(CONFIG_FILE) then
-        print("  ℹ Plik " .. CONFIG_FILE .. " nie istnieje")
-        return nil
-    end
+    if not isfile or not readfile then return nil end
+    if not isfile(CONFIG_FILE) then return nil end
     local success, content = pcall(function() return readfile(CONFIG_FILE) end)
-    if not success then
-        print("  ❌ Nie udało się odczytać pliku")
-        return nil
-    end
+    if not success then return nil end
     local data = HttpService:JSONDecode(content)
     return data and data.key
 end
 
 local function writeConfig(key)
-    if not writefile then
-        print("  ⚠ writefile niedostępne")
-        return
-    end
-    pcall(function()
-        writefile(CONFIG_FILE, HttpService:JSONEncode({key = key}))
-        print("  ✅ Zapisano klucz do pliku")
-    end)
+    if not writefile then return end
+    pcall(function() writefile(CONFIG_FILE, HttpService:JSONEncode({key = key})) end)
 end
 
 local function deleteConfig()
     if not delfile then return end
     pcall(function() delfile(CONFIG_FILE) end)
-    print("  🗑 Usunięto plik z kluczem")
 end
 
 local function getHWID()
     local success, hwid = pcall(function()
         return game:GetService("RbxAnalyticsService"):GetClientId()
     end)
-    if success and hwid and hwid ~= "" then
-        print("  ✅ HWID z AnalyticsService: " .. hwid)
-        return hwid
-    end
-    local fallback = tostring(math.floor(tonumber(tostring({}):match("0x(%x+)")) or 0))
-    print("  ⚠ HWID fallback: " .. fallback)
-    return fallback
+    if success and hwid and hwid ~= "" then return hwid end
+    return tostring(math.floor(tonumber(tostring({}):match("0x(%x+)")) or 0))
 end
 
 local function verifyKey(key)
     local hwid = getHWID()
     local url = API_BASE_URL .. "/api/verify?key=" .. HttpService:UrlEncode(key) .. "&hwid=" .. HttpService:UrlEncode(hwid)
-    print("  🌐 Weryfikacja: " .. url)
     local success, response = pcall(function() return game:HttpGet(url) end)
-    if not success then
-        print("  ❌ Błąd połączenia: " .. tostring(response))
-        return false, "Connection error"
-    end
-    print("  📨 Odpowiedź API: " .. response)
+    if not success then return false, "Connection error" end
     local data = HttpService:JSONDecode(response)
     if data.success then
         return true
@@ -79,25 +50,20 @@ local function fetchScript(scriptName, key)
     local url = API_BASE_URL .. "/api/get-script?key=" .. HttpService:UrlEncode(key)
                 .. "&hwid=" .. HttpService:UrlEncode(hwid)
                 .. "&script=" .. HttpService:UrlEncode(scriptName)
-    print("  🌐 Pobieranie skryptu: " .. url)
     local success, response = pcall(function() return game:HttpGet(url) end)
-    if not success then
-        error("Nie udało się pobrać skryptu: " .. tostring(response))
-    end
+    if not success then error("Failed to fetch script") end
     if response:sub(1,1) == "{" then
         local data = HttpService:JSONDecode(response)
-        error("Błąd serwera: " .. (data.error or "nieznany"))
+        error(data.error or "Unknown error")
     end
-    print("  📥 Otrzymano " .. #response .. " bajtów kodu")
     return response
 end
 
 local function showKeyPrompt()
-    print("  🖼 Tworzę GUI...")
     local screen = Instance.new("ScreenGui")
     screen.Name = "KeyPrompt"
     screen.ResetOnSpawn = false
-    screen.Parent = LocalPlayer:WaitForChild("PlayerGui")  -- używamy PlayerGui!
+    screen.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
     local background = Instance.new("Frame")
     background.Size = UDim2.new(0, 320, 0, 180)
@@ -120,7 +86,6 @@ local function showKeyPrompt()
 
     closeButton.MouseButton1Click:Connect(function()
         screen:Destroy()
-        print("  ❌ GUI zamknięte przez użytkownika")
         pcall(function() error("Closed by user") end)
     end)
 
@@ -192,7 +157,6 @@ local function showKeyPrompt()
         button.Text = "CHECKING..."
         button.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
 
-        print("  🔑 Próba weryfikacji klucza: " .. rawKey)
         local ok, err = verifyKey(rawKey)
         if ok then
             status.Text = "Valid key. Loading..."
@@ -202,72 +166,37 @@ local function showKeyPrompt()
             writeConfig(rawKey)
             wait(1)
             screen:Destroy()
-            print("  ✅ Weryfikacja pomyślna, zamykam GUI")
         else
             status.Text = "Error: " .. (err or "unknown")
             status.TextColor3 = Color3.fromRGB(255, 100, 100)
             button.Text = "VERIFY"
             button.BackgroundColor3 = Color3.fromRGB(80, 140, 255)
-            print("  ❌ Weryfikacja nieudana: " .. (err or "unknown"))
         end
     end)
 
-    repeat
-        wait(0.2)
-    until finished or not screen.Parent
-
+    repeat wait(0.2) until finished or not screen.Parent
     return enteredKey
 end
 
 local function main()
-    print("🔍 Sprawdzam zapisany klucz...")
     local key = readConfig()
 
     if key then
-        print("🔑 Znaleziono klucz: " .. key)
         local ok, err = verifyKey(key)
         if not ok then
-            print("❌ Klucz nieważny: " .. (err or "?"))
             deleteConfig()
             key = nil
-        else
-            print("✅ Klucz poprawny!")
         end
-    else
-        print("ℹ Brak zapisanego klucza")
     end
 
     if not key then
-        print("🖼 Oczekiwanie na GUI...")
         key = showKeyPrompt()
-        if not key then
-            print("❌ Nie wprowadzono klucza, koniec")
-            return
-        end
+        if not key then return end
     end
 
-    print("📥 Pobieram tds.lua...")
-    _G.LICENSE_KEY = key  -- przekazanie klucza do głównego skryptu
+    _G.LICENSE_KEY = key
     local scriptContent = fetchScript("tds.lua", key)
-    print("🚀 Uruchamiam skrypt...")
     loadstring(scriptContent)()
 end
 
-local success, err = pcall(main)
-if not success then
-    print("💥 BŁĄD KRYTYCZNY: " .. tostring(err))
-    -- Opcjonalnie wyświetl błąd w GUI
-    local errorGui = Instance.new("ScreenGui")
-    errorGui.Name = "ErrorGui"
-    errorGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    local errorLabel = Instance.new("TextLabel")
-    errorLabel.Size = UDim2.new(0, 400, 0, 100)
-    errorLabel.Position = UDim2.new(0.5, -200, 0.5, -50)
-    errorLabel.BackgroundColor3 = Color3.fromRGB(30,30,40)
-    errorLabel.TextColor3 = Color3.fromRGB(255,100,100)
-    errorLabel.Text = "Loader error:\n" .. tostring(err)
-    errorLabel.Font = Enum.Font.Code
-    errorLabel.TextSize = 14
-    errorLabel.Parent = errorGui
-    Instance.new("UICorner", errorLabel).CornerRadius = UDim.new(0,8)
-end
+pcall(main)
