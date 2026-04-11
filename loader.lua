@@ -68,8 +68,8 @@ local function showKeyPrompt()
     local background = Instance.new("Frame")
     background.Size = UDim2.new(0, 320, 0, 180)
     background.Position = UDim2.new(0.5, -160, 0.5, -90)
-    background.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
-    background.BackgroundTransparency = 0.1
+    background.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    background.BackgroundTransparency = 0.45
     background.BorderSizePixel = 0
     background.Parent = screen
     Instance.new("UICorner", background).CornerRadius = UDim.new(0, 12)
