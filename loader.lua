@@ -1,6 +1,6 @@
--- Minimalny loader – zapisuje klucz i uruchamia tds.lua z API
-local API_BASE_URL = "https://tds-key-backend.onrender.com"  -- Zmień na swój adres
-local LICENSE_KEY = "TDS-A5730BFB-6168"                      -- <-- Twój klucz testowy
+-- ==================== LOADER Z DIAGNOSTYKĄ BŁĘDU ====================
+local API_BASE_URL = "https://tds-key-backend.onrender.com"
+local LICENSE_KEY = "TDS-A5730BFB-6168"   -- Twój klucz
 local KEY_FILE = "key.json"
 
 local HttpService = game:GetService("HttpService")
@@ -32,13 +32,43 @@ local function fetchScript(key)
     return r
 end
 
--- Sprawdź klucz
 if not verifyKey(LICENSE_KEY) then
     error("Invalid key")
 end
 
--- Zapisz klucz do pliku (dla tds.lua)
 writefile(KEY_FILE, HttpService:JSONEncode({key = LICENSE_KEY}))
 
--- Pobierz i uruchom główny skrypt
-loadstring(fetchScript(LICENSE_KEY))()
+local scriptContent = fetchScript(LICENSE_KEY)
+
+-- Diagnostyka: próba załadowania z pcall i wypisanie błędu
+local chunk, err = loadstring(scriptContent)
+if not chunk then
+    error("Błąd składni w tds.lua: " .. err)
+end
+
+-- Opakowujemy wykonanie w pcall, aby przechwycić błąd runtime
+local success, result = pcall(chunk)
+if not success then
+    local errorMsg = tostring(result)
+    -- Próba wyciągnięcia numeru linii z komunikatu błędu
+    local line = errorMsg:match(":(%d+):")
+    print("❌ BŁĄD WYKONANIA tds.lua:")
+    print(errorMsg)
+    if line then
+        print("➡ Linia: " .. line)
+        -- Pobierz tę linię z kodu dla kontekstu
+        local lines = {}
+        for s in scriptContent:gmatch("([^\n]*)\n?") do
+            table.insert(lines, s)
+        end
+        local ctxStart = math.max(1, tonumber(line) - 2)
+        local ctxEnd = math.min(#lines, tonumber(line) + 2)
+        print("📄 Kontekst:")
+        for i = ctxStart, ctxEnd do
+            local prefix = (i == tonumber(line)) and ">>> " or "    "
+            print(prefix .. i .. ": " .. lines[i])
+        end
+    end
+else
+    print("✅ Skrypt uruchomiony pomyślnie!")
+end
